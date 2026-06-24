@@ -11,40 +11,42 @@
 |------|------|-----------|
 | **SYSTEM_ADMIN** | 시스템 전체 관리자 | 전체 접근 |
 | **ADMIN** | BikeRun 관리자 (자전거 등록/수리/상태 변경) | /admin/*, /api/admin/* |
-| **CITIZEN** | 일반 시민 (목록 확인/문의/예약) | /bikes/*, /bookings/*, /login, /register |
+| **CITIZEN** | 일반 시민 (목록 확인·문의·예약) | /bikes/*, /bookings/*, /login |
 
 > ⚠️ **핵심 원칙**: 자전거 등록·수리·게시는 BikeRun 관리자만 수행. 일반 시민은 목록 확인·문의·예약만 가능.
 
 ---
 
-## 2. 인증/인가 흐름
+## 2. 인증/인가 흐름 (SNS OAuth)
 
 ### 2.1 로그인
 
 ```
 [Citizen/Admin] -> [GET /login] -> [LoginPage (Client)]
-  - 이메일 + 비밀번호 입력 (Zod 검증)
-  - POST /api/auth/* (NextAuth handler) -> Credentials Provider
-    - bcrypt.compare
-    - JWT 생성 (role 포함)
-    - 쿠키에 저장
+  - 네이버/카카오톡 SNS 로그인 버튼 표시
+  - 버튼 클릭 -> NextAuth OAuth 시작 (provider=Naver|KakaoTalk)
+    - 외부 SNS 페이지로 리다이렉트 -> 사용자 인증
+    - Callback URL(/api/auth/callback/:provider)에서 code exchange
+    - profile(fetch) -> email, name, imageUrl 획득
+    - findOrCreate({ provider, snsId }) -> User 생성 또는 조회
+    - JWT 발급 (role 포함, snsId 포함) -> 쿠키 저장
   - 세션 생성 -> 원래 페이지로 리다이렉트
 ```
 
 **에러 케이스:**
-- `INVALID_CREDENTIALS` — 잘못된 이메일/비밀번호
-- `FORBIDDEN` — 관리자 페이지 접근 시 역할 없음
+- `OAUTH_CALLBACK_ERROR` — OAuth provider callback 실패
+- `FORBIDDEN` — 관리자 페이지 접근 시 role !== ADMIN
+- `OAUTH_CREATE_USER_ERROR` — OAuth 데이터로 사용자를 생성하지 못함
 
 ### 2.2 회원가입
 
 ```
-[Visitor] -> [GET /register] -> [RegisterPage (Client)]
-  - 이메일 + 비밀번호 + 이름 입력 (Zod 검증)
-  - POST /api/auth/register
-    - duplicate email 체크
-    - bcrypt hash
-    - User 생성 (role: CITIZEN)
-  - 자동 로그인 -> /bikes 리다이렉트
+Visitor -> [SNS 로그인 버튼 클릭] -> OAuth Flow -> profile 응답
+  - findOrCreate({ provider, snsId, email, name, imageUrl })
+  - User 미존재 시 -> role: USER 자동 생성 (자동 가입)
+  - OAuth 인증 완료 -> /bikes 리다이렉트
+  
+⚠️ 별도 회원가입 페이지 없음. SNS 인증만으로 가입/로그인 통합.
 ```
 
 ### 2.3 인가 검증
@@ -286,7 +288,66 @@ pending -> responded -> scheduled -> completed
 
 ---
 
-## 9. 구조 참고
+## 10. Articles (수리 이야기) 흐름
+
+### 10.1 수리 이야기 목록 조회 (Public)
+
+```
+[VISITOR/CITIZEN] -> [GET /blogs] -> [BlogsPage (Server)]
+  - Prisma: getArticles({ where: { status: 'PUBLISHED' }, orderBy: { publishedAt: 'desc' }, take: 20 })
+  - 카테고리 필터 (선택) — where: { category: 'repair' | 'story' | 'notice' }
+  - ArticleCard 목록 (썸네일, 제목,_excerpt_, 날짜, 카테고리 뱃지)
+  - generateMetadata()에서 OG 메타 설정
+```
+
+### 10.2 수리 이야기 상세 조회 (Public)
+
+```
+[CITIZEN/VISITOR] -> [GET /blogs/[slug]] -> [ArticleDetailPage (Server)]
+  - Prisma: getArticle({ where: { slug, status: 'PUBLISHED' } })
+  - 404 if not found or DRAFT
+  - 수전/수 리 이미지 갤러리, 본문 (HTML/MD rendered)
+  - Author 정보, publishedAt
+  - ShareButtons (URL 복사, Twitter/X, 카카오톡 링크)
+  - Metadata: OG title/description/image from article.title/excerpt/coverImage
+```
+
+### 10.3Articles 공유
+
+```
+[VISITOR] -> [ShareButtons Client Component]
+  - URL 복사: navigator.clipboard.writeText(url)
+  - Twitter/X: https://twitter.com/intent/tweet?url=${url}&text=${title}
+  - KakaoTalk: kakao.share({ defaultText: title, link: { mobileUrl: url } }) (Kakao SDK)
+```
+
+### 10.4 관리자 Artikel 작성/편집/삭제
+
+```
+[ADMIN] -> [GET /admin/articles] -> [AdminArticlesPage (Server)]
+  - AdminArticleTable: slug, title, status (DRAFT/PUBLISHED), author, publishedAt, updatedAt
+  - [new] 버튼 -> /admin/articles/new
+  - Actions: [edit] -> /admin/articles/[id]/edit, [delete] (confirm 모달)
+
+[ADMIN] -> [POST /admin/articles] -> [ArticleService.create()]
+  - Zod 검증: articleCreateSchema (title, slug, content, category, coverImage)
+  - Prisma: article.upsert({ slug }) — 중복 slug 체크
+  - redirect(/admin/articles)
+
+[ADMIN] -> [PATCH /admin/articles/[slug]] -> [ArticleService.update()]
+  - Zod 검증: articleUpdateSchema
+  - title 변경 시 slug도 업데이트 필요
+  
+  - redirect(/admin/articles)
+
+[ADMIN] -> [DELETE /admin/articles/[slug]] -> [ArticleService.delete()]
+  - Prisma: article.delete({ where: { slug } })
+  - redirect(/admin/articles)
+```
+
+---
+
+## 11. 구조 참고
 
 - **디iscipline 규칙:** `CODE/*/AGENTS.md` 파일별 개발 가이드
 - **에이전트 구성:** `harness/opencode.jsonc`

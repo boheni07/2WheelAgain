@@ -127,16 +127,18 @@
 User (1) ──── (N) Booking (N) ──── (1) Bike
 User (N) ──── (1) ActivityLog  ──── (Entity)
 Bike (N) ──── (1) ActivityLog  ──── (Entity)
+User (1) ──── (N) Article        ──── (Entity)
 ```
 
 ### 4.2 Entity 정의
 
 | Entity | 주요 필드 | 설명 |
 |--------|---------|------|
-| `User` | `id, email, role, name, phone` | SYSTEM_ADMIN / ADMIN / CITIZEN |
+| `User` | `id, email, name, phone, imageUrl, provider, snsId, role` | `provider`=`NAVER`|`KAKAO`, `snsId`=각 SNS 고유계정ID, `role`=`USER`|`ADMIN` |
 | `Bike` | `id, brand, model, condition, price, source, images` | purchase / donation / seized |
 | `Booking` | `id, bikeId, userId, type, status, contactInfo` | inquiry / purchase / donate |
 | `ActivityLog` | `id, actorId, action, entityType, entityId, metadata, createdAt` | 모든 운영 작업 기록 |
+| `Article` | `id, title, slug, excerpt, content, coverImage, authorId, status, category, publishedAt, createdAt, updatedAt` | BikeRun 수리 스토리, 서비스 소개 콘텐츠 |
 
 ### 4.3 상태 정의
 
@@ -149,24 +151,33 @@ pending → responded → scheduled → completed
  cancelled  cancelled   cancelled
 ```
 
+**Article 상태:** `DRAFT`, `PUBLISHED`
+
 ---
 
 ## 5. 인증/인가 아키텍처
 
 ### 5.1 NextAuth.js v5 구성
 
-- **Provider:** Credentials (이메일/비밀번호)
-- **Session:** JWT 기반 쿠키
-- **Callback:** JWT에 `role` 포함, Session에 주입
-- **LoginPage:** `/login`
+- **Provider:** Naver, KakaoTalk (SNS OAuth 전용)
+- **Session:** JWT 기반 쿠키, `provider`/`snsId` 포함
+- **Callback:** OAuth callback → `User.findOrCreate({ snsId, provider })` → JWT签发
+- **LoginPage:** `/login` — SNS 로그인 버튼 (Credentials 폼 비제공)
+- **Registration:** OAuth 인증 완료 시 자동 생성 (별도 회원가입 없음)
 
 ```
-[Citizen] --login--> [NextAuth / API /api/auth/*] --verify JWT--> [Session + Role]
-                                                           |
-                                                           v
-                                                  [RBAC Middleware / layout]
-                                                     - /admin/* -> role === ADMIN
-                                                     - /bookings/* -> userId === session.userId
+[Visitor] --SNS 로그인--> [NextAuth SNS Provider API] --Callback--> [OAuth Profile Fetch]
+                                                                             |
+                                                                             v
+                                                               [User.findOrCreate(snsId, provider)]
+                                                                             |
+                                                                             v
+                                                           [JWT: role, snsId, provider]
+                                                                             |
+                                                                             v
+                                                    [RBAC Middleware / layout]
+                                                       - /admin/* -> role === ADMIN
+                                                       - /bookings/* -> snsId === user.snsId
 ```
 
 ### 5.2 인가 규칙
@@ -192,6 +203,9 @@ pending → responded → scheduled → completed
 
 ```
 /                               — 홈 (Landing)
+/about                          — 서비스 소개 (About)
+/blogs                          — 수리 이야기 목록 (Blog)
+/blogs/[slug]                   — 수리 이야기 상세
 /bikes                          — 자전거 목록 (Server Component)
 /bikes/[id]                     — 상세 페이지
 /bikes/[id]/inquire             — 구매 문의 (Client)
@@ -206,6 +220,9 @@ pending → responded → scheduled → completed
 
 ```
 /admin                          — 대시보드 overview
+/admin/articles                 — 수리 이야기 CMS (DataTable)
+/admin/articles/new             — 신규 작성 (Client)
+/admin/articles/[id]/edit       — 편집 폼 (Client)
 /admin/bikes                    — 관리자 자전거 목록 (DataTable)
 /admin/bikes/[id]               — 자전거 상세/수정
 /admin/bikes/[id]/edit          — 편집 폼 (Client)
@@ -240,6 +257,8 @@ export default async function AdminLayout({ children }) {
 ├── bikes/[id]                  — GET / PUT / DELETE
 ├── bookings                    — GET / POST (인증 필요)
 ├── bookings/[id]               — GET / PUT (상태 변경)
+├── articles                    — GET (공개) / POST (관리자)
+├── articles/[slug]             — GET (공개) / PATCH (관리자)
 └── admin/*                     — 관리자 전용 엔드포인트
 ```
 
@@ -276,6 +295,7 @@ interface ApiError {
 | `BookingService` | 예약 생성/상태 변경, 상태 머신 검증 |
 | `AuthService` | 로그인/회원가입, JWT 토큰 관리 |
 | `LogService` | ActivityLog 기록 |
+| `ArticleService` | Article CRUD (관리자), 공개 게시글 조회, slug 라우팅 |
 | `EmailService` | 이메일 알림 (선택) |
 
 ---

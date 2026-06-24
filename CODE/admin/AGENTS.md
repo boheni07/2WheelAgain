@@ -2,100 +2,106 @@
 
 ## 1. Purpose
 
-`2WheelAgain` 플랫폼의 관리자 대시보드 기능, 권한 체계, 전용 컴포넌트 및 데이터 흐름을 정의합니다.
-관리자 기능은 `/admin/*` 라우트 아래의 서버 사이드 인증 체크를 필수로 합니다.
+`/admin/*` 라우트가 적용되는 관리자 기능 구현 규칙.
+RBAC auth layout, 대시보드 컴포넌트, CRUD 상태 변경 로직.
 
 ## 2. Directory Structure
 
 ```
-frontend/app/admin/
-├── layout.tsx               # 관리자 라우트 레이아웃 (RBAC 필수 체크)
-├── page.tsx                 # /admin — 대시보드 overview (지표 요약)
-└── bikes/
-    ├── page.tsx             # /admin/bikes — 전체 자전거 목록 (데이터 테이블)
-    ├── [id]/
-    │   ├── page.tsx         # /admin/bikes/:id — 자전거 상세/수정
-    │   └── edit/
-    │       └── page.tsx     # /admin/bikes/:id/edit — 편집 폼
-    └── new/
-        └── page.tsx         # /admin/bikes/new — 신규 등록 폼
-├── bookings/
-│   ├── page.tsx             # /admin/bookings — 전체 예약 목록
+frontend/src/app/admin/
+├── layout.tsx             # auth() 체크 — admin(user.role !== "ADMIN") → redirect("/login")
+├── page.tsx               # /admin — 대시보드 (지표 요약)
+├── articles/
+│   ├── page.tsx           # /admin/articles — 수리 이야기 목록 (DataTable)
+│   ├── new/               # /admin/articles/new — 신규 작성 (Client Component)
+│   │   └── page.tsx
 │   └── [id]/
-│       └── page.tsx         # /admin/bookings/:id — 예약 상세/상태 변경
-└── analytics/
-    └── page.tsx             # /admin/analytics — 이용 통계 대시보드
+│       └── edit/          # /admin/articles/[id]/edit — 편집 폼 (Client Component)
+│           └── page.tsx
+├── bikes/
+│   └── page.tsx           # /admin/bikes — 관리 데이터 테이블
+├── bookings/
+│   └── page.tsx           # /admin/bookings — 예약 관리
+├── activities/
+│   └── page.tsx           # /admin/activities — 활동 로그
+└── components/            # admin 전용 컴포넌트
+    ├── AdminBikeTable.tsx
+    ├── AdminBookingTable.tsx
+    ├── AdminArticleTable.tsx
+    ├── StatusBadge.tsx
+    └── ActivityFeed.tsx
+```
+
+### 2.1 Admin Article Table
+
+```tsx
+// admin/article/AdminArticleTable.tsx
+interface ArticleRow {
+  id: string;
+  title: string;
+  slug: string;
+  status: "DRAFT" | "PUBLISHED";
+  category: string;
+  author: string;
+  publishedAt?: string;
+  updatedAt: string;
+}
+
+// <table> 기반 DataTable
+// - 열: title, status(뱃지), category, author, publishedAt/updatedAt, actions(edit/delete)
+// - 행: 각 Article 데이터
+// - 액션 버튼: [Edit] → /admin/articles/[id]/edit, [Delete] → API 호출 후 confirm 모달
+// - Key: 항상 `item.id`
+```
+
+### 2.2 Admin Article Form Flow (Client)
+
+```
+/admin/articles/new → AdminArticleFormClient (Client Component)
+  - 폼 필드: 제목, slug(자동생성 or 수동입력), 본문(MDE), 카테고리, 썸네일 URL, 상태 드롭다운, 출판 날짜
+  - 제출: POST /api/articles → 성공 시 redirect(/admin/articles) → 에러 시 폼 에러 표시
+  - Zod 검증: articleCreateSchema 경유
+
+/admin/articles/[id]/edit → AdminArticleFormClient (Client Component)
+  - 초기값: API 또는 Server Component에서 pre-fetched article
+  - 제출: PATCH /api/articles/[id] → 성공 시 redirect(/admin/articles)
+  -slug 변경 시 old slug로 DELETE API 먼저 호출 후 new slug INSERT (API 라우트에서 처리)
 ```
 
 ## 3. Code Style Rules
 
-### 3.1 관리자 레이아웃
+### 3.1 RBAC auth
 
-모든 `/admin` 아래 라우트는 `layout.tsx`에서 **RBAC 미들웨어를 거치도록** 강제합니다.
-
-```tsx
-// admin/layout.tsx
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  // 1. 세션/토큰 검증
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    revalidatePath("/");
-    redirect("/login?error=FORBIDDEN");
-  }
-  return <AdminProviders>{children}</AdminProviders>;
-}
-```
-
-### 3.2 데이터 테이블 패턴
+- `/admin/layout.tsx`에서 **단 한 번만** `auth()` 호출 — 개별 페이지에서 중복 금지
+- 실제 구현: `layout.tsx`에서 `session.user.role !== "ADMIN"` → `redirect("/login")`
 
 ```tsx
-// admin/bikes/page.tsx — DataTable + Pagination 조합
-async function getAdminBikes({ page, limit, filter }: QueryParams) {
-  "use server";
-  // 1. Prisma로 페이지네이션된 데이터 조회
-  // 2. 총 개수로 totalPages 계산
-  // 3. { success: true, data: Bike[], meta: { total, page, limit, totalPages } } 반환
-}
+// admin/layout.tsx (현존 구현)
+const session = await auth();
+const isAdmin = session?.user?.role === "ADMIN";
+if (session && !isAdmin) return <div>접근 불가</div>;
+if (!session) return <div>로그인 필요합니다</div>;
 ```
 
-### 3.3 상태 변경 흐름
+### 3.2 서버 컴포넌트 우선
 
-```tsx
-// admin/bookings/[id]/page.tsx — 상태 전이 폼
-async function transitionBookingStatus(formData: FormData) {
-  "use server";
-  // 1. zod 검증
-  // 2. serviceLayer.transitionBookingStatus(bookingId, newStatus, actorId, "admin")
-  // 3. ActivityLog 자동 기록 (serviceLayer.log)
-  // 4. 리다이렉트
-}
-```
+- admin 페이지는 서버에서 Prisma 직접 쿼리 — 데이터 페칭 목적상 API 라우트 경유 불필요
+- 상태 변경(`booking.status` 등)만 API 라우트 경유 — `PATCH /api/bookings/[id]/status`
 
-## 4. Admin 전용 컴포넌트
+### 3.3 컴포넌트 네이밍
 
-```
-frontend/components/admin/
-├── AdminSidebar.tsx          # 사이드 네비게이션
-├── MetricCard.tsx            # 대시보드 지표 카드 (총 자전거 수, 활성 예약 등)
-├── StatusBadge.tsx           # 상태별 뱃지 (pending, responded, completed...)
-├── DataTable.tsx             # 정렬/필터/페이징 내장 테이블
-├── ActionDropdown.tsx        # 행별 액션 드롭다운 (edit, delete, change-status)
-├── ActivityFeed.tsx          # 최근 운영 로그 피드
-├── BikeRegistrationForm.tsx  # 관리자용 자전거 등록 폼
-└── BookingStatusForm.tsx     # 예약 상태 변경 폼
-```
+- `AdminBikeTable`, `AdminBookingTable` — `Admin*` prefix (admin 도메인 명확성)
+- 테이블: `<table>` 기반 + Tailwind 유틸리티, React Key는 항상 `item.id`
 
-## 5. Must Do
+## 4. Must Do
 
-- ✅ `/admin` 라우트는 반드시 레이아웃에서 RBAC 체크 — 개별 페이지에서 중복 체크 불필요
-- ✅ 대시보드 데이터는 `generateMetadata` 및 직접 데이터 fetch 로 서버 사이드에서 로드
-- ✅ 상태 변경 시 `ActivityLog` 자동 기록 — 서비스 레이어에서 수행
-- ✅ DataTable 컴포넌트는 URL state(`?page=&filter=`)와 연동하여 프라우저 북마크 가능하도록
-- ✅ 관리자 전용 페이지는 `export const dynamic = "force-dynamic"`으로 캐시 방지
+- `/admin/layout.tsx`에서 유일한 RBAC auth 체크 — 중복 금지
+- admin 테이블은 `<table>` 태그 + `<thead>/<tbody>` 사용 (<div> 레이아웃 금지)
+- 데이터 페칭은 서버 컴포넌트에서 Prisma 직접
+- 상태 변경 API는 `PATCH /api/bookings/[id]/status` 경유, Zod 검증 필수
 
-## 6. Must Not Do
+## 5. Must Not Do
 
-- ❌ 관리자 페이지에서 `useState`로 주요 데이터 상태 관리 — 서버 라우터/Server Action 필수
-- ❌ `catch {}`로 에러를 무시 — 500 페이지 또는 `toast.error()`로 사용자에게 피드백
-- ❌ 관리자 기능에서 `as any` 또는 타입 assertion 남발
-- ❌ 일반 사용자가 `/admin` URL을 직접 입력했을 때 500 에러 표시 — `403` 리다이렉트
+- admin 페이지에서 `auth()` 중복 호출
+- Server Component에서 `useState` / `onClick` — Client Component로 분리
+- `use client` 디렉티브 없이 Client 훅 사용 — TypeScript 오류 발생

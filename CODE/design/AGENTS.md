@@ -1,129 +1,109 @@
-# 디자인 (UI/UX) AGENTS Discipline
+# 디자인 (Design System) AGENTS Discipline
 
 ## 1. Purpose
 
-`2WheelAgain` 플랫폼의 디자인 시스템, 컴포넌트 팔레트, 색상/타이포그래피 토큰, 접근성 지침을 정의합니다.
-Radix UI + Tailwind CSS를 기반으로 하며, 산업용 그린(industrial green) 테마를 핵심으로 합니다.
+Tailwind CSS 기반 UI 규칙. 토큰, 컴포넌트, 레이아웃 패턴.
 
 ## 2. Design Tokens
 
 ### 2.1 컬러 팔레트
 
 ```css
-/* styles/tokens.css */
 :root {
-  /* Primary & Brand */
-  --color-primary-50: 239 246 244;   /* #eff6f4 */
-  --color-primary-300: 140 170 130;   /* #8caa82 */
-  --color-primary-500: 45 110 100;   /* #2d6e64 */
-  --color-primary-700: 45 110 100;   /* #2d6e64 */
-  --color-primary-900: 45 60 52;     /* #2d3c34 */
+  /* Primary — 산업용 그린 */
+  --color-primary-50:   239 246 244;   /* #eff6f4 */
+  --color-primary-300:  140 170 130;   /* #8caa82 */
+  --color-primary-500:  45 110 100;    /* #2d6e64 */
+  --color-primary-900:  45 60 52;      /* #2d3c34 */
 
-  /* Neutrals (Slate/Gray) */
-  --color-neutral-50: 248 250 252;   /* #f8fafc */
-  --color-neutral-100: 241 245 249;  /* #f1f5f9 */
-  --color-neutral-400: 148 163 184;  /* #94a3b8 */
-  --color-neutral-800: 30 41 59;     /* #1e293b */
+  /* Neutrals */
+  --color-neutral-50:   248 250 252;   /* #f8fafc */
+  --color-neutral-400:  148 163 184;   /* #94a3b8 */
+  --color-neutral-800:  30 41 59;      /* #1e293b */
 
-  /* Status Colors */
-  --color-success-500: 22 163 74;    /* #16a34a */
-  --color-warning-500: 202 138 4;    /* #ca8a04 */
-  --color-danger-500: 220 38 38;     /* #dc2626 */
-  --color-info-500: 3 105 161;       /* #0369a1 */
-
-  /* Spacing */
-  --spacing-xs: 0.25rem;   /* 4px */
-  --spacing-sm: 0.5rem;    /* 8px */
-  --spacing-md: 1rem;      /* 16px */
-  --spacing-lg: 1.5rem;    /* 24px */
-  --spacing-xl: 2rem;      /* 32px */
-
-  /* Radius */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-full: 9999px;
+  /* Status */
+  --color-success-500:  22 163 74;     /* #16a34a */
+  --color-warning-500:  202 138 4;     /* #ca8a04 */
+  --color-danger-500:   220 38 38;     /* #dc2626 */
 }
 ```
 
 ### 2.2 타이포그래피
 
-| 스케일 | 폰트 크기 | 라인 높이 | 용도 |
-|--------|---------|---------|------|
-| `text-xs` | `0.75rem` (12px) | `1rem` | 캡션, 뱃지 텍스트 |
-| `text-sm` | `0.875rem` (14px) | `1.25rem` | 보조 텍스트, 폼 레이블 |
-| `text-base` | `1rem` (16px) | `1.5rem` | 본문 텍스트 |
-| `text-lg` | `1.125rem` (18px) | `1.75rem` | 소제목 |
-| `text-xl` | `1.25rem` (20px) | `1.75rem` | 카드 제목 |
-| `text-2xl` | `1.5rem` (24px) | `2rem` | 섹션 제목 |
-| `text-3xl` | `1.875rem` (30px) | `2.25rem` | 히어로 제목 |
+| 스케일 | Tailwind | 용도 |
+|--------|---------|------|
+| `text-xs` | `0.75rem` | 캡션, 뱃지 |
+| `text-sm` | `0.875rem` | 보조 텍스트, 폼 레이블 |
+| `text-base` | `1rem` | 본문 |
+| `text-xl` | `1.25rem` | 카드 제목 |
+| `text-3xl` | `1.875rem` | 히어로 |
 
-## 3. Directory Structure
+## 3. Code Style Rules
 
-```
-design/
-├── AGENTS.md                    # 이 파일
-├── tokens/
-│   ├── colors.json              # 컬러 토큰 (JSON)
-│   ├── spacing.json             # 간격 토큰
-│   └── typography.json          # 타이포그래피 토큰
-├── components/
-│   ├── Button.tsx               # 디자인 시스템 Button
-│   ├── Input.tsx                # Input + Label 조합
-│   ├── Card.tsx                 # Card + Header + Body
-│   ├── Badge.tsx                # 상태/타입 뱃지
-│   ├── EmptyState.tsx           # 콘텐츠 없을 때
-│   └── Pagination.tsx           # 페이지네이션
-└── assets/
-    └── logo.svg                 # 2WheelAgain 로고
-```
+### 3.1 레이아웃
 
-## 4. Component Guidelines
+- `max-w-4xl mx-auto` 콘텐츠 박스 — hero/full-bleed 제외
+- section 간격: `space-y-6`
+- grid: `grid-cols-1 md:grid-cols-2 gap-6`
 
-### 4.1 Button
+### 3.2 컴포넌트
+
+- Card: `rounded-xl shadow-sm border + Header + Body + Footer`
+- Button: `px-4 py-2 rounded-md font-medium transition-colors`
+- Badge: `rounded-full px-2 py-0.5 text-xs font-medium`
+
+### 3.3 About 페이지 레이아웃
+
+- Hero: 큰 타이틀 (`text-4xl font-bold`) + 서브 타이틀 (`text-lg`) + 간결 본문 (`text-base`)
+- 섹션 구분: 수평선 (`border-t`) + `max-w-3xl mx-auto` 박스
+- 비전/미션 영역: 아이콘(emoji) + 제목 + 설명 3열 그리드 (`text-center`)
+- CTA: 두 번째 버튼 (`ring` outline 스타일) + 메인 버튼 (`primary` fill)
 
 ```tsx
-// UI 컴포넌트는 Shadcn/Radix 조합으로 구현
-// variants로 size, variant를 스타일링
-// 필수 prop: asChild (Radix 호환성)
+// AboutPage 레이아웃 패턴
+<section className="text-center py-16 space-y-4">
+  <h1 className="text-4xl font-bold">2WheelAgain</h1>
+  <p className="text-lg text-[var(--color-neutral-400)]">
+    방치된 자전거가 새로운 여행이 되는 곳
+  </p>
+</section>
+
+<section className="max-w-3xl mx-auto py-12 space-y-6">
+  <h2 className="text-2xl font-semibold">서비스 비전</h2>
+  <p className="text-base leading-relaxed">...</p>
+</section>
 ```
 
-- **Variants**: `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`
-- **Sizes**: `default`, `sm`, `lg`, `icon`
-- 상태 뱃지의 경우 `variant="secondary"` 또는 `variant="outline"` 권장
-- **주의**: `disabled` 상태는 반드시 `opacity-50 cursor-not-allowed` 적용
+### 3.4 Article 페이지 레이아웃
 
-### 4.2 Badge
+- 목록 (`/blogs`): `grid-cols-1 md:grid-cols-2 lg:grid-cols-3`, ArticleCard 컴포넌트
+- ArticleCard: coverImage(top) + title + category badge + date + excerpt(2줄 제한)
+- 상세(`/blogs/[slug]`): 최대 너비 `max-w-3xl`, 본문 `text-lg leading-relaxed space-y-4`
+- 본문 내 heading: `text-xl/3xl font-semibold` → `text-base` 본문 → `text-sm` 부가 설명
+- share 버튼: 상세 페이지 우측 상단 또는 본문 하단 고정
+
+### 3.5 Share 버튼 컴포넌트
 
 ```tsx
-// 상태별 color 매핑:
-// pending -> yellow
-// responded -> blue
-// scheduled -> teal
-// completed -> green
-// cancelled -> red
+// component/ShareButtons.tsx — Client Component
+// URL복사, Twitter(X), KakaoTalk SDK — 3개 버튼
+// - 아이콘 기반 (SVG inline) + Tooltip
+// - URL복사 시 Toast 알림 (상태: Copied!)
+// - KakaoTalk SDK: window.Kakao.init() 호출 전역에서 1회
 ```
 
-### 4.3 EmptyState
+- 버튼 크기: `w-10 h-10 rounded-full` (원형), 간격 `gap-3`
+- 색상: Twitter(`bg-[#1DA1F2]`), Kakao(`bg-[#FEE500]`), URL(`bg-[var(--color-neutral-800)]`)
+- `ShareButtons`는 `use client` 필요 (클립보드 API 사용)
 
-```tsx
-// 아이콘 + 제목 + 설명 + CTA 버튼 구성
-// 아이콘은 Lucide React 사용
-```
+## 4. Must Do
 
-## 5. Must Do
+- `space-y-6` section 간격 표준화
+- `max-w-4xl mx-auto` 콘텐츠 박스
+- 모든 이미지 alt 속성 필수
+- 본문 최소 `text-sm`, `text-xs`는 캡션만
 
-- ✅ 모든 컴포넌트에 `className` 전파 — `asChild` 패턴 준수
-- ✅ Tailwind CSS utility-first 만 사용 — 임의 CSS 파일 금지
-- ✅ 색상 코드 고정값 사용 금지 — CSS 변수(`--color-primary-500`) 사용
-- ✅ 접근성: 모든 버튼/링크에 `aria-label` 부여
-- ✅ 모바일 퍼스트 반응형 — `sm:`, `md:`, `lg:` 브레이크포인트 순서대로 작성
-- ✅ 테마 일관성: `primary`, `neutral`, `status` 컬러 외에는 추가 금지
+## 5. Must Not Do
 
-## 6. Must Not Do
-
-- ❌ `!important` 사용 금지
-- ❌ 임계값을 위한 `h-[123px]` 같은 임의 Tailwind 값 금지
-- ❌ CSS-in-JS 스타일링 금지
-- ❌ 시스템 폰트 외의 Google Fonts 사용 금지 (단, 필요시 `font-family` 토큰으로 관리)
-- ❌ 디자인 토큰을 CSS 파일에 직접 수정하지 않기 — `tokens/` 폴더에서 관리
+- Inline CSS — Tailwind 유틸리티만 사용
+- 레이아웃 grid에 12-column 외 임의 flex 사용
