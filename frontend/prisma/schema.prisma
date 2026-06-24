@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CITIZEN
+  ADMIN
+}
+
+enum BikeSource {
+  PURCHASE
+  DONATION
+  SEIZED
+}
+
+enum BookingType {
+  INQUIRY
+  PURCHASE
+  DONATE
+}
+
+enum BookingStatus {
+  PENDING
+  RESPONDED
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  phone     String?
+  role      Role     @default(CITIZEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bookings  Booking[]
+}
+
+model Bike {
+  id          String       @id @default(cuid())
+  brand       String
+  model       String
+  condition   String
+  priceOrFree String
+  images      String[]
+  source      BikeSource
+  repairNotes String?
+  adminId     String
+  owner_id    String?
+  bookings    Booking[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Booking {
+  id        String          @id @default(cuid())
+  bikeId    String
+  userId    String
+  type      BookingType
+  status    BookingStatus   @default(PENDING)
+  contact   String?
+  message   String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  bike      Bike            @relation(fields: [bikeId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+}

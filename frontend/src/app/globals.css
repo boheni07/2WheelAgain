@@ -1,0 +1,21 @@
+@layer base {
+  :root {
+    --color-primary: #2d5a3d;
+    --color-primary-hover: #234931;
+    --color-accent: #c4935e;
+    --color-accent-hover: #a87a4d;
+    --color-background: #fafaf8;
+    --color-foreground: #1a1a1a;
+    --color-muted: #6b6b6b;
+    --color-border: #e2e2df;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+}
