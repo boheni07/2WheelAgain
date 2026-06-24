@@ -1,336 +1,125 @@
-# Harness Engineering — Testing
+# Harness Engineering — 테스트 전략
 
-> `2WheelAgain` — Vitest + Playwright testing specifications
-> Strictly design-only. No code generation.
+> `2WheelAgain` — 테스트 전략 요약
+> 본 문서는 설계 전용입니다. 코드 생성을 포함하지 않습니다.
 
 ---
 
-## 1. Overview
-
-Testing discipline for `2WheelAgain` follows a **Test Pyramid**:
-- **Unit tests** (Vitest) — Zod schemas, utilities, auth helpers
-- **Component tests** (Vitest + Testing Library) — UI components in isolation
-- **E2E tests** (Playwright) — Full user flows, auth, RBAC
-
-### 1.1 File Organization
+## 1. 테스트 계층 피라미드 (Testing Pyramid)
 
 ```
-frontend/src/__tests__/
-├── unit/
-│   ├── schemas.test.ts           # All Zod validation schemas
-│   ├── prisma.test.ts            # Database query mocks
-│   ├── auth.test.ts              # nextAuth helper functions
-│   └── utils.test.ts             # Utility functions
-├── components/
-│   ├── card.test.tsx             # Card component
-│   ├── button.test.tsx           # Button variants
-│   ├── badge.test.tsx            # Status badges
-│   └── article-card.test.tsx     # ArticleCard component
-└── e2e/
-    ├── homepage.test.ts          # Landing page
-    ├── auth-signin.test.ts       # SNS OAuth login flow
-    ├── bikes.test.ts             # Bike listing + detail
-    ├── admin-redirect.test.ts    # RBAC enforcement
-    ├── article.test.ts           # Article CRUD (admin)
-    └── about.test.ts             # About page content
+         /\     (E2E)
+        /  \
+       /    \   (서비스 테스트)
+      /______\
+     /        \ (유닛 / 함수)  <-- 가장 많이 작성
+    /__________\
+┌─────────────────────────┐
+│  Unit Tests (Vitest)    │
+│  Function-based         │
+│  Fast, isolated         │
+└─────────────────────────┘
 ```
 
 ---
 
-## 2. Vitest Unit Tests
+## 2. Vitest (단위 테스트)
 
-### 2.1 Configuration
+### 2.1 구성 및 목적
+- **테스트 프레임워크**: Vitest v2.0+
+- **테스트 파일 패턴**: `src/**/*.test.ts`
+- **목표**: 각 유틸함수, 유효성 검사 스키마, 서비스 로직의 단위 테스트
 
-```ts
-// vitest.config.ts (specification)
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
+### 2.2 작성 규칙
+1. **단위 테스트는 최대한 작고 빠르게 실행해야 함**:
+   - 각 테스트는 단 하나의 함수 / 유틸리티 기능만 테스트
+   - DB 연결 없이 테스트 → `vi.mock("@/lib/prisma")` 로 Prisma mocking
+   - 테스트 당 3-5개의 assertion
+2. **테스트 파일 구조**:
+   ```ts
+   // src/schemas/auth.test.ts
+   import { describe, it, expect } from "vitest";
+   import { loginSchema } from "./auth";
 
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./src/__tests__/setup.ts'],
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-    },
-    include: ['src/__tests__/**/*.test.{ts,tsx}'],
-  },
-});
-```
+   describe("loginSchema", () => {
+     it("should validate correct input", () => { ... });
+     it("should reject missing email", () => { ... });
+   });
+   ```
+3. **모의 객체 및 Fixtures**:
+   - 테스트 데이터는 `fixtures.ts` 파일에서 관리
+   - 모의 객체는 `vi.mock` 로만 생성하고, `vi.fn()` 사용하여 스텁 작성
 
-### 2.2 Setup File
-
-```ts
-// __tests__/setup.ts (specification)
-import { vi } from 'vitest';
-
-// Mock Next.js modules
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
-  notFound: vi.fn(),
-}));
-
-vi.mock('next-auth', () => ({
-  auth: vi.fn(() => Promise.resolve(null)),
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-}));
-```
-
-### 2.3 Schema Validation Tests
-
-All Zod schemas MUST have unit tests covering:
-- **Valid inputs** — `parse()` should succeed
-- **Invalid inputs** — `parse()` should throw
-- **Edge cases** — empty strings, max lengths, special characters
-- **Partial updates** — optional fields for update schemas
-
-```ts
-// __tests__/unit/schemas.test.ts (specification)
-
-describe('bikeCreateSchema', () => {
-  // Valid bike creation
-  // Invalid: missing brand
-  // Invalid: negative price
-  // Invalid: unknown condition enum
-});
-
-describe('bikeUpdateSchema', () => {
-  // Valid: partial update (price only)
-  // Valid: update status only
-  // Invalid: null price (explicit null check)
-});
-
-describe('bookingSchema', () => {
-  // Valid booking with all fields
-  // Valid: minimal fields
-  // Invalid: unknown type enum
-  // Invalid: unknown status enum
-});
-
-describe('articleSchema', () => {
-  // Valid: full article creation
-  // Invalid: uppercase slug (must be kebab-case)
-  // Invalid: empty title
-  // Invalid: missing content
-});
-```
-
-### 2.4 Prisma Mock Tests
-
-```ts
-// __tests__/unit/prisma.test.ts (specification)
-// MUST mock @prisma/client — direct DB calls forbidden
-// Must test:
-//   - Bike findMany with filters
-//   - Booking status transitions
-//   - Article CRUD operations
-//   - User upsert for OAuth
-```
-
-### 2.5 Component Tests
-
-```ts
-// __tests__/components/button.test.tsx (specification)
-// MUST test:
-//   - Primary button variant renders with correct class
-//   - Secondary button with ring outline style
-//   - Disabled state disables element
-//   - Icon variants render without children text
-
-// __tests__/components/article-card.test.tsx (specification)
-// MUST test:
-//   - Card renders cover image with alt text
-//   - Category badge displays correct color
-//   - Title and excerpt display within max lines
-//   - Click navigates to /blogs/[slug]
-```
-
-### 2.6 Test Naming Convention
-
-| Format | Purpose | Example |
-|--------|---------|---------|
-| `should...` | Positive assertion | `should validate a valid bike payload` |
-| `rejects...` | Negative assertion | `rejects uppercase slug` |
-| `renders...` | Visual assertion | `renders primary button with green fill` |
-| `redirects...` | Navigation assertion | `redirects unauthenticated to /login` |
-
-### 2.7 Test Constraints
-
-- **No real DB calls** — all `@prisma/client` mocked
-- **No HTTP calls** — all `fetch` mocked
-- **No real OAuth** — NextAuth functions mocked
-- **No sleep/setTimeout** — use `vi.useFakeTimers()` if needed
-- **`vi.mock()` scope** — reset after each test to avoid leakage
-- **`allowMultipleResults`** — enable for all tests
+### 2.3 코드 커버리지 목표
+- **커버리지 목표**: 함수 라인 커버리지 **80%+**
+- 테스트 실행: `pnpm -F frontend test:unit`
 
 ---
 
-## 3. Playwright E2E Tests
+## 3. Playwright (E2E 테스트)
 
-### 3.1 Configuration
+### 3.1 구성 및 목적
+- **테스트 프레임워크**: Playwright v1.45+
+- **테스트 파일 패턴**: `src/__tests__/**/*.test.ts`
+- **목표**: 주요 사용자 흐름 테스트 (로그인, 목록 조회, 예약 등)
 
+### 3.2 주요 테스트 시나리오 (V1)
+1. **로그인 및 리다이렉션**:
+   - Naver/Kakao 버튼 클릭 시 OAuth 페이지로 리다이렉션됨
+   - 로그인 후 `/bikes` 리다이렉션
+2. **자전거 목록 페이지**:
+   - 페이지 로드 시 자전거 카드 표시
+   - 필터 (가격, 상태) 적용
+3. **관리자 대시보드 (ADMIN)**:
+   - 로그인 후 `/admin/bikes` 진입
+   - 자전거 등록 버튼 표시
+
+### 3.3 코드 스타일
 ```ts
-// playwright.config.ts (specification)
-import { defineConfig } from '@playwright/test';
+// src/__tests__/e2e/login.spec.ts
+import { test, expect } from "@playwright/test";
 
-export default defineConfig({
-  testDir: 'src/__tests__/e2e',
-  fullyParallel: true,
-  retries: 2,
-  timeout: 30_000,
-  use: {
-    baseURL: 'http://localhost:8899',
-    headless: true,
-    screenshot: 'only-on-failure',
-    trace: 'on-first-retry',
-  },
-  expect: {
-    timeout: 5_000,
-  },
-  webServer: {
-    command: 'pnpm -F frontend dev',
-    port: 8899,
-    reuseExisting: true,
-    timeout: 30_000,
-  },
-  projects: [
-    { name: 'setup', ... },
-    { name: 'chromium', use: { ... } },
-  ],
+test("should redirect to naver oauth on login button click", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "네이버 로그인" }).click();
+  await expect(page).toHaveURL(/.*naver.com.*\/authorize/);
 });
-```
-
-### 3.2 Test Fixtures
-
-Agents MUST create fixtures for common E2E patterns:
-
-```ts
-// __tests__/e2e/fixtures.ts (specification)
-
-// authFixtures:
-//   - beforeEach: navigate to /login
-//   - signAsAdmin(page): login as seeded admin
-//   - signAsUser(page): login as seeded user
-
-// dbFixtures:
-//   - beforeEach: clear and seed test data
-//   - createBike(payload): seed a new bike
-//   - createArticle(payload): seed a new article
-
-// pageFixtures:
-//   - beforeAll: goto http://localhost:8899
-//   - clickPrimaryButton(selector): handle .btn-primary
-//   - fillForm(fields): fill multiple inputs
-//   - validateStatus(statusCode): assert response status
-```
-
-### 3.3 E2E Test Coverage Matrix
-
-| Test | Page | Assertions |
-|------|------|------------|
-| `homepage.test.ts` | `/` | Hero renders, navigation links work, footer content |
-| `auth-signin.test.ts` | `/login` | Naver + Kakao buttons visible, redirect on click |
-| `bikes.test.ts` | `/bikes` | Bike cards render, filter buttons work, detail page loads |
-| `bikes-detail.test.ts` | `/bikes/[id]` | Bike info renders, booking form validates, image gallery |
-| `admin-redirect.test.ts` | `/admin/*` | Unauthenticated → `/login`, non-admin → `403` |
-| `admin-bikes.test.ts` | `/admin/bikes` | Bike list in `<table>`, CRUD actions visible on admin |
-| `article.test.ts` | `/blogs` | Article grid, category filter, pagination |
-| `article.test.ts` | `/blogs/[slug]` | Full content displays, share button exists |
-| `article-admin.test.ts` | `/admin/articles` | Article table, markdown editor, draft/publish toggle |
-| `about.test.ts` | `/about` | Vision/mission grid, CTA buttons work |
-| `contact.test.ts` | `/contact` | Contact form, validation, phone/email display |
-| `admin-users.test.ts` | `/admin/users` | User table, role toggle, search |
-
-### 3.4 RBAC E2E Tests (Critical)
-
-```ts
-// __tests__/e2e/rbac.test.ts (specification)
-
-describe('RBAC Enforcement', () => {
-  test('unauthenticated user cannot access /admin', async ({ page }) => {
-    // Navigate to /admin without login
-    // Should redirect to /login with next=/admin in URL
-  });
-
-  test('non-admin user cannot access /admin', async ({ page }) => {
-    // Login as regular user
-    // Navigate to /admin
-    // Should show 403 or redirect
-  });
-
-  test('admin user can access /admin', async ({ page }) => {
-    // Login as admin
-    // Navigate to /admin
-    // Should render admin dashboard
-  });
-
-  test('admin can POST /api/bikes', async ({ page }) => {
-    // Admin authenticated
-    // Create bike via API
-    // Should return 201 with created bike
-  });
-
-  test('non-admin CANNOT POST /api/bikes', async ({ page }) => {
-    // Non-admin authenticated
-    // Attempt to create bike via API
-    // Should return 403
-  });
-});
-```
-
-### 3.5 E2E Constraints
-
-- **No hardcoded waits** — use `expect()` assertions for element visibility
-- **No `sleep()`** — use Playwright's built-in auto-wait
-- **`<table>` + `<thead>/<tbody>`** — admin tables MUST be testable with semantic selectors
-- **Zod error rendering** — E2E tests MUST verify Zod validation error messages render in UI
-- **403 response** — unauthed user on admin routes → `403` status code
-- **Login page** — MUST only render Naver + Kakao buttons (no credential form)
-
----
-
-## 4. Test Execution Commands
-
-```bash
-# All tests
-pnpm test          # Vitest — unit + component
-pnpm e2e           # Playwright — E2E
-
-# Single test file
-pnpm test -- schemas.test.ts          # Vitest
-pnpm e2e -- auth-signin.test.ts       # Playwright
-
-# Watch mode
-pnpm test:watch                         # Vitest watch
-pnpm e2e -- ui                          # Playwright interactive UI
 ```
 
 ---
 
-## 5. Test Design Principles
+## 4. 테스트 분리 및 격리
 
-1. **Independence** — each test is setup-complete; no test depends on another
-2. **Deterministic** — no flaky tests; seed data is idempotent
-3. **Fast** — unit tests < 1s; E2E tests < 30s each
-4. **Readable** — test names read like specs: "should reject uppercase slug"
-5. **Verifiable** — every assertion uses explicit expected state
-6. **Agent-friendly** — structured patterns agents can replicate consistently
+- **격리**: 각 테스트는 독립적으로 실행 가능해야 함
+- **테스트 DB**: 별도의 테스트 DB 또는 `pg_try_create_db('test_twowheelagain')` 사용
+- **고립 환경**:
+  - `pnpm test:unit`은 In-memory Prisma Client 사용
+  - `pnpm test:e2e`은 별도 테스트 용 PostgreSQL 사용
+  - `pnpm test:lint`는 린트 규칙 체크만 수행
 
 ---
 
-## 6. Constraint Checklist
+## 5. CI/CD 통합
 
-| Rule | Enforcement |
-|------|-------------|
-| No `as any` in test code | Lint config |
-| No real DB calls | `vi.mock('@prisma/client')` required |
-| No real HTTP calls | `vi.mock('node-fetch')` or `fetch` mock |
-| No real OAuth | NextAuth `vi.fn()` mocks |
-| Strict mode TypeScript | `noEmit: true` in tsconfig test section |
-| 2 retry on flaky | Playwright `retries: 2` |
+- **GitHub Actions**:
+  - PR 생성 시: `lint + typecheck + test:unit` 실행
+  - `main` 브랜치 푸시 시: `build + test:e2e` 실행
+- **로컬 테스트 실행**:
+  ```bash
+  # 전체 테스트 실행
+  pnpm test:all
+  # 단위 테스트만
+  pnpm test:unit
+  # E2E 테스트만
+  pnpm test:e2e
+  ```
 
-> ⚠️ **Design-only**: This is specification. No test files are implemented. The `__tests__/` directory does not exist yet.
+---
+
+## 6. 에이전트 테스트 제약사항
+
+- 모든 기능 개발 시 해당 단위 테스트 필수 작성
+- `vi.mock()` 을 사용하여 외부 의존성 격리
+- 테스트명은 `describe + it` 패턴으로 작성
+  - 예: `it("should return error when email is invalid")`
+- 코드 커버리지가 80% 미만일 경우 PR 생성 금지
