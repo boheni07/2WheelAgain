@@ -7,9 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  CITIZEN
+enum SNSProvider {
+  NAVER
+  KAKAO
+}
+
+enum UserRole {
+  USER
   ADMIN
+}
+
+enum BikeStatus {
+  AVAILABLE
+  SOLD
+  MAINTENANCE
 }
 
 enum BikeSource {
@@ -20,8 +31,7 @@ enum BikeSource {
 
 enum BookingType {
   INQUIRY
-  PURCHASE
-  DONATE
+  RESERVATION
 }
 
 enum BookingStatus {
@@ -32,25 +42,38 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+}
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String      @id @default(cuid())
+  email     String?     @unique
   name      String?
   phone     String?
-  role      Role     @default(CITIZEN)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  imageUrl  String?
+  provider  SNSProvider
+  snsId     String      @unique
+  role      UserRole    @default(USER)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
   bookings  Booking[]
+  articles  Article[]
+
+  @@unique([provider, snsId])
 }
 
 model Bike {
   id          String       @id @default(cuid())
   brand       String
   model       String
+  year        Int
   condition   String
-  priceOrFree String
-  images      String[]
+  price       String
   source      BikeSource
+  images      String[]
+  status      BikeStatus   @default(AVAILABLE)
   repairNotes String?
   adminId     String
   owner_id    String?
@@ -60,17 +83,17 @@ model Bike {
 }
 
 model Booking {
-  id        String          @id @default(cuid())
-  bikeId    String
-  userId    String
-  type      BookingType
-  status    BookingStatus   @default(PENDING)
-  contact   String?
-  message   String?
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  bike      Bike            @relation(fields: [bikeId], references: [id])
-  user      User            @relation(fields: [userId], references: [id])
+  id          String          @id @default(cuid())
+  bikeId      String
+  userId      String
+  type        BookingType
+  status      BookingStatus   @default(PENDING)
+  contactInfo String?
+  note        String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  bike        Bike            @relation(fields: [bikeId], references: [id])
+  user        User            @relation(fields: [userId], references: [id])
 }
 
 model ActivityLog {
@@ -81,4 +104,20 @@ model ActivityLog {
   entityId   String
   metadata   Json?
   createdAt  DateTime @default(now())
+}
+
+model Article {
+  id          String        @id @default(cuid())
+  title       String
+  slug        String        @unique
+  excerpt     String?
+  content     String
+  coverImage  String?
+  authorId    String
+  status      ArticleStatus @default(DRAFT)
+  category    String?
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  author      User          @relation(fields: [authorId], references: [id])
 }

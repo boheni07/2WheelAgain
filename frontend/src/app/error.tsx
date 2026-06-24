@@ -1,4 +1,12 @@
-export default function ServerError() {
+'use client';
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div>
@@ -6,6 +14,13 @@ export default function ServerError() {
         <p className="mt-2 text-gray-600">
           An unexpected error occurred. Please try again later.
         </p>
+        <button
+          type="button"
+          onClick={() => reset()}
+          className="mt-4 rounded bg-[#2d6a4f] px-4 py-2 text-white"
+        >
+          Try again
+        </button>
       </div>
     </div>
   );

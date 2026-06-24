@@ -1,12 +1,10 @@
 import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { PrismaClient } from "@prisma/client";
-import CredentialsProvider from "next-auth/providers/credentials";
-import { z } from "zod";
+import NaverProvider from "next-auth/providers/naver";
+import KakaoProvider from "next-auth/providers/kakao";
 
 declare module "next-auth" {
   interface User {
-    id: string;
     role: string;
   }
   interface Session {
@@ -14,49 +12,23 @@ declare module "next-auth" {
       id: string;
       name?: string | null;
       email?: string | null;
+      imageUrl?: string | null;
       role: string;
     };
   }
 }
 
-const prisma = new PrismaClient();
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter as any,
   session: { strategy: "jwt" },
   providers: [
-    CredentialsProvider({
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        const parsed = loginSchema.safeParse(credentials);
-        if (!parsed.success) return null;
-
-        const { email, password } = parsed.data as { email: string; password: string };
-
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
-        if (!user) return null;
-
-        if (password !== user.email?.split("@")[0]) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        };
-      },
+    NaverProvider({
+      clientId: process.env.NAVER_CLIENT_ID!,
+      clientSecret: process.env.NAVER_CLIENT_SECRET!,
+    }),
+    KakaoProvider({
+      clientId: process.env.KAKAO_CLIENT_ID!,
+      clientSecret: process.env.KAKAO_CLIENT_SECRET!,
     }),
   ],
   callbacks: {
@@ -67,7 +39,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return token;
     },
     session({ session, token }) {
-      session.user.role = token.role as string;
+      (session as { user: { role: string } }).user.role = token.role as string;
       return session;
     },
   },

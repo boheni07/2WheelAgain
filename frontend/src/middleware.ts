@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
 export const config = {
@@ -8,15 +8,13 @@ export const config = {
 export async function middleware(request: NextRequest) {
   const session = await auth();
 
-  if (!session) {
-    return Response.redirect(new URL("/login?error=not-Authenticated", request.url));
+  if (!session?.user) {
+    return NextResponse.redirect(new URL("/login?error=not-Authenticated", request.url));
   }
 
-  const session_ = session as { user: { role: string } };
-
-  if (session_.user.role !== "ADMIN") {
-    return Response.redirect(new URL("/login?error=FORBIDDEN", request.url));
+  if (session.user.role !== "ADMIN") {
+    return NextResponse.redirect(new URL("/login?error=FORBIDDEN", request.url));
   }
 
-  return undefined;
+  return NextResponse.next();
 }
