@@ -1,0 +1,83 @@
+{
+  "$schema": "./node_modules/@opencode-ai/agent/schemas/config.json",
+  "meta": {
+    "version": "1.0.0",
+    "project": "2WheelAgain",
+    "description": "Agent/Skill mappings and discipline profiles for 2WheelAgain development."
+  },
+
+  "agents": {
+    "default": {
+      "provider": "sisyphus",
+      "description": "Default orchestration agent. Handles codebase navigation and simple execution."
+    },
+    "momus": {
+      "provider": "reviewer",
+      "description": "Plan critic and quality reviewer. Loads discipline files before reviewing implementation.",
+      "system_prompt": "You are Momus, the Plan Critic for 2WheelAgain. Before reviewing a plan, read the relevant AGENTS.md files to understand constraints. Focus on: 1) RBAC compliance, 2) Prisma schema integrity, 3) Server/Client component split, 4) Zod validation coverage.",
+      "knowledge_base": [
+        "./AGENTS.md",
+        "./frontend/AGENTS.md",
+        "./backend/AGENTS.md",
+        "./database/AGENTS.md",
+        "./auth/AGENTS.md",
+        "./admin/AGENTS.md",
+        "./design/AGENTS.md",
+        "./testing/AGENTS.md"
+      ],
+      "tools": ["read", "glob", "grep", "bash"]
+    },
+    "oracle": {
+      "provider": "specialist",
+      "description": "High-IQ read-only consultant for complex debugging, architecture decisions, and security reviews.",
+      "system_prompt": "You are the Oracle for 2WheelAgain. Provide deep, read-only analysis of the codebase. Reference AGENTS.md files when making architectural suggestions. Focus on: 1) Database query optimization (N+1 prevention), 2) API route efficiency, 3) State machine integrity, 4) Security vulnerabilities.",
+      "tools": ["lsp_diagnostics", "read", "glob", "grep", "background_output"]
+    },
+    "metis": {
+      "provider": "planner",
+      "description": "Pre-planning consultant. Analyzes ambiguous requests and identifies hidden requirements before task delegation.",
+      "system_prompt": "You are Metis, the Plan Consultant for 2WheelAgain. Analyze user requests to discover implicit constraints. Check against AGENTS.md discipline files. Output: 1) Clarified requirements, 2) Potential failure points, 3) Recommended subagent delegation strategy.",
+      "tools": ["read", "glob", "grep"]
+    }
+  },
+
+  "skills": {
+    "frontend-ux": {
+      "description": "Expert UI/UX skills for Tailwind CSS and Radix UI component implementation.",
+      "applies_to": ["frontend/AGENTS.md", "design/AGENTS.md"],
+      "commands": ["/frontend-ui-ux"]
+    },
+    "git-master": {
+      "description": "Atomic commits, rebase/squash, history search. STRONGLY RECOMMENDED for all code changes.",
+      "applies_to": ["./AGENTS.md"],
+      "commands": ["/git-master"]
+    },
+    "playwright": {
+      "description": "Browser automation and E2E testing via Playwright.",
+      "applies_to": ["testing/AGENTS.md"],
+      "commands": ["/playwright"]
+    },
+    "ai-slop-remover": {
+      "description": "Removes AI-generated code smells while preserving functionality.",
+      "applies_to": ["./AGENTS.md"],
+      "commands": ["/ai-slop-remover"]
+    }
+  },
+
+  "workflows": {
+    "develop-feature": [
+      "1. Read relevant AGENTS.md discipline files",
+      "2. Consult Metis for requirement analysis",
+      "3. Implement using frontend/backend/AGENTS.md guidelines",
+      "4. Run tests via testing/AGENTS.md patterns",
+      "5. Momus reviews the implementation plan",
+      "6. Git commit with conventional commit message"
+    ],
+    "review-work": [
+      "1. Momus audits against all AGENTS.md discipline files",
+      "2. Oracle checks for architectural violations and N+1 queries",
+      "3. Playwright runs critical E2E flows",
+      "4. Report pass/fail status"
+    ]
+  }
+}
